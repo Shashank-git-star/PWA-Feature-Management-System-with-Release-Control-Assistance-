@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import environment, feature_flag, override, auth
+from app.routers import environment, feature_flag, override, auth, flag_evaluation
 from app.database import engine, Base
 from app import models
 
@@ -16,6 +16,7 @@ app.include_router(environment.router)
 app.include_router(feature_flag.router)
 app.include_router(override.router)
 app.include_router(auth.router)
+app.include_router(flag_evaluation.router)
 @app.get("/")
 def read_root():
     return {"message": "Application runs successfully and connects to PostgreSQL!"}
