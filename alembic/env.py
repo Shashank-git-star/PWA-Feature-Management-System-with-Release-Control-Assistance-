@@ -24,10 +24,7 @@ config = context.config
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
 
 
-from app.database import Base
-from app.models.environment import EnvironmentModel 
-from app.models.feature_flag import FeatureFlagModel, EnvironmentOverrideModel
-from app.models.audit_log import AuditLogModel
+from app.models import Base
 target_metadata = Base.metadata
 
 

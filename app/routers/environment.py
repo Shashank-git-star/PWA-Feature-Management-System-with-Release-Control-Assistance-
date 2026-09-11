@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models.environment import EnvironmentModel
+from app.models import EnvironmentModel
 from app.schemas.environment import EnvironmentCreate, EnvironmentResponse
 
 router = APIRouter(prefix="/environments", tags=["Environments"])
 
-# 1. CREATE
+# CREATE
 @router.post("/", response_model=EnvironmentResponse, status_code=status.HTTP_201_CREATED)
 def create_environment(env: EnvironmentCreate, db: Session = Depends(get_db)):
     existing_env = db.query(EnvironmentModel).filter(EnvironmentModel.name == env.name).first()
@@ -20,12 +20,12 @@ def create_environment(env: EnvironmentCreate, db: Session = Depends(get_db)):
     db.refresh(db_env)
     return db_env
 
-# 2. READ (All)
+# READ (All)
 @router.get("/", response_model=List[EnvironmentResponse])
 def list_environments(db: Session = Depends(get_db)):
     return db.query(EnvironmentModel).all()
 
-# 3. READ (Single by ID)
+# READ (Single by ID)
 @router.get("/{env_id}", response_model=EnvironmentResponse)
 def get_environment(env_id: int, db: Session = Depends(get_db)):
     env = db.query(EnvironmentModel).filter(EnvironmentModel.id == env_id).first()
@@ -33,7 +33,7 @@ def get_environment(env_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Environment not found")
     return env
 
-# 4. UPDATE
+# UPDATE
 @router.put("/{env_id}", response_model=EnvironmentResponse)
 def update_environment(env_id: int, env_update: EnvironmentCreate, db: Session = Depends(get_db)):
     db_env = db.query(EnvironmentModel).filter(EnvironmentModel.id == env_id).first()
@@ -46,7 +46,7 @@ def update_environment(env_id: int, env_update: EnvironmentCreate, db: Session =
     db.refresh(db_env)
     return db_env
 
-# 5. DELETE
+# DELETE
 @router.delete("/{env_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_environment(env_id: int, db: Session = Depends(get_db)):
     db_env = db.query(EnvironmentModel).filter(EnvironmentModel.id == env_id).first()

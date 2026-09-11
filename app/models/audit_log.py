@@ -1,5 +1,9 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.sql import func
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+INDIA_TIMEZONE = ZoneInfo("Asia/Kolkata")
 from app.database import Base
 
 class AuditLogModel(Base):
@@ -9,4 +13,4 @@ class AuditLogModel(Base):
     user_id = Column(Integer, nullable=True) # Will link to User table
     action = Column(String, nullable=False)   # e.g., "CREATE_FLAG", "UPDATE_FLAG", "TOGGLE_FLAG"
     details = Column(String, nullable=False)  # Description of what changed
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(INDIA_TIMEZONE), server_default=func.now())

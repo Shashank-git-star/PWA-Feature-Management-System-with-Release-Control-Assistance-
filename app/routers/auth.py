@@ -4,11 +4,11 @@ from app.database import get_db
 from app.schemas.user import UserCreate, UserResponse
 from app.core.security import hash_password, verify_password
 from fastapi.security import OAuth2PasswordRequestForm
-from app.models.user import UserModel as User
+from app.models import UserModel as User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# 1. SIGNUP / REGISTER
+# SIGNUP
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
@@ -40,3 +40,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     return {"access_token": f"fake-super-token-for-{user.email}", "token_type": "bearer"}
+
+@router.get("/users")
+def list_users(db: Session = Depends(get_db)):
+    return db.query(User).filter(User.is_active.is_(True)).all()

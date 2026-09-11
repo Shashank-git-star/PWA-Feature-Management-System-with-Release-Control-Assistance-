@@ -4,11 +4,11 @@ from typing import List
 from app.database import get_db
 import app.models.feature_flag
 from app.schemas.override import OverrideCreate, OverrideUpdate, OverrideResponse
-from app.models.environment import EnvironmentModel
+from app.models import EnvironmentModel
 
 router = APIRouter(prefix="/overrides", tags=["Environment Overrides"])
 
-# 1. CREATE an override
+# CREATE an override
 @router.post("/", response_model=OverrideResponse, status_code=status.HTTP_201_CREATED)
 def create_override(override: OverrideCreate, db: Session = Depends(get_db)):
     # Verify that the feature flag exists
@@ -41,12 +41,12 @@ def create_override(override: OverrideCreate, db: Session = Depends(get_db)):
     db.refresh(db_override)
     return db_override
 
-# 2. READ (All overrides)
+# READ (All overrides)
 @router.get("/", response_model=List[OverrideResponse])
 def list_overrides(db: Session = Depends(get_db)):
     return db.query(app.models.feature_flag.EnvironmentOverrideModel).all()
 
-# 3. UPDATE an override
+# UPDATE an override
 @router.put("/{override_id}", response_model=OverrideResponse)
 def update_override(override_id: int, override_update: OverrideUpdate, db: Session = Depends(get_db)):
     db_override = db.query(app.models.feature_flag.EnvironmentOverrideModel).filter(app.models.feature_flag.EnvironmentOverrideModel.id == override_id).first()
@@ -62,7 +62,7 @@ def update_override(override_id: int, override_update: OverrideUpdate, db: Sessi
     db.refresh(db_override)
     return db_override
 
-# 4. DELETE an override
+# DELETE an override
 @router.delete("/{override_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_override(override_id: int, db: Session = Depends(get_db)):
     db_override = db.query(app.models.feature_flag.EnvironmentOverrideModel).filter(app.models.feature_flag.EnvironmentOverrideModel.id == override_id).first()

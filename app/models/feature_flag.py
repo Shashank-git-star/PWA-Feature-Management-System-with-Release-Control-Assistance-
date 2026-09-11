@@ -14,6 +14,7 @@ class FeatureFlagModel(Base):
     enabled = Column(Boolean, default=False) # Global ON/OFF switch
     owner_team = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    rollout_percentage = Column(Integer, default=0) # 0 means no rollout, 100 means everyone
 
 class EnvironmentOverrideModel(Base):
     __tablename__ = "environment_overrides"
@@ -23,3 +24,4 @@ class EnvironmentOverrideModel(Base):
     environment_id = Column(Integer, ForeignKey("environments.id", ondelete="CASCADE"), nullable=False)
     value = Column(Boolean, nullable=False)
     enabled = Column(Boolean, default=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
