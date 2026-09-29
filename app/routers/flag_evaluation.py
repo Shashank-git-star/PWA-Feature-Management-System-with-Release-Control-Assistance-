@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.services.cache import get_cached_evaluation, set_cached_evaluation
 from app.services.evaluation import evaluate_flag
+from app.models import EnvironmentModel, EvaluationEventModel, FeatureFlagModel
 from fastapi import HTTPException
 from typing import Optional
 
@@ -25,9 +26,20 @@ class EvaluationResponse(BaseModel):
 
 @router.post("/evaluate", response_model=EvaluationResponse)
 def evaluate_flag_endpoint(req: EvaluationRequest, db: Session = Depends(get_db)):
+    flag = db.query(FeatureFlagModel).filter(FeatureFlagModel.key == req.flag_key.strip()).first()
+    environment = db.query(EnvironmentModel).filter(EnvironmentModel.name == req.environment.strip()).first()
+
     # TRY REDIS FIRST
     cached = get_cached_evaluation(req.flag_key, req.environment, req.user_id, req.group_id)
     if cached:
+        if flag and environment:
+            db.add(EvaluationEventModel(
+                flag_id=flag.id,
+                environment_id=environment.id,
+                user_id=req.user_id,
+                group_id=req.group_id
+            ))
+            db.commit()
         return EvaluationResponse(
             flag_key=req.flag_key,
             environment=req.environment,
@@ -44,6 +56,14 @@ def evaluate_flag_endpoint(req: EvaluationRequest, db: Session = Depends(get_db)
 
     # SAVE TO REDIS FOR NEXT TIME
     set_cached_evaluation(req.flag_key, req.environment, req.user_id, result_dict, req.group_id)
+    if flag and environment:
+        db.add(EvaluationEventModel(
+            flag_id=flag.id,
+            environment_id=environment.id,
+            user_id=req.user_id,
+            group_id=req.group_id
+        ))
+        db.commit()
     
     return EvaluationResponse(
         flag_key=req.flag_key,

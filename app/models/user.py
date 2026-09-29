@@ -17,3 +17,4 @@ class UserModel(Base):
     group = relationship("UserGroupModel", back_populates="users")
 
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+    is_admin = Column(Boolean, default=False, nullable=False)

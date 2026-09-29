@@ -4,12 +4,14 @@ from typing import List
 from app.database import get_db
 from app.models import EnvironmentModel
 from app.schemas.environment import EnvironmentCreate, EnvironmentResponse
+from app.services.audit import log_action
+from app.routers.auth import require_admin
 
 router = APIRouter(prefix="/environments", tags=["Environments"])
 
 # CREATE
 @router.post("/", response_model=EnvironmentResponse, status_code=status.HTTP_201_CREATED)
-def create_environment(env: EnvironmentCreate, db: Session = Depends(get_db)):
+def create_environment(env: EnvironmentCreate, db: Session = Depends(get_db), admin_user=Depends(require_admin)):
     existing_env = db.query(EnvironmentModel).filter(EnvironmentModel.name == env.name).first()
     if existing_env:
         raise HTTPException(status_code=400, detail="Environment already exists")
@@ -18,6 +20,8 @@ def create_environment(env: EnvironmentCreate, db: Session = Depends(get_db)):
     db.add(db_env)
     db.commit()
     db.refresh(db_env)
+    log_action(db, "CREATE_ENVIRONMENT", admin_user.id, db_env.name, None, env.description, environment_id=db_env.id, commit=False)
+    db.commit()
     return db_env
 
 # READ (All)
@@ -35,24 +39,27 @@ def get_environment(env_id: int, db: Session = Depends(get_db)):
 
 # UPDATE
 @router.put("/{env_id}", response_model=EnvironmentResponse)
-def update_environment(env_id: int, env_update: EnvironmentCreate, db: Session = Depends(get_db)):
+def update_environment(env_id: int, env_update: EnvironmentCreate, db: Session = Depends(get_db), admin_user=Depends(require_admin)):
     db_env = db.query(EnvironmentModel).filter(EnvironmentModel.id == env_id).first()
     if not db_env:
         raise HTTPException(status_code=404, detail="Environment not found")
     
+    old_state = f"{db_env.name}: {db_env.description or ''}"
     db_env.name = env_update.name
     db_env.description = env_update.description
+    log_action(db, "UPDATE_ENVIRONMENT", admin_user.id, db_env.name, old_state, env_update.description, environment_id=db_env.id, commit=False)
     db.commit()
     db.refresh(db_env)
     return db_env
 
 # DELETE
 @router.delete("/{env_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_environment(env_id: int, db: Session = Depends(get_db)):
+def delete_environment(env_id: int, db: Session = Depends(get_db), admin_user=Depends(require_admin)):
     db_env = db.query(EnvironmentModel).filter(EnvironmentModel.id == env_id).first()
     if not db_env:
         raise HTTPException(status_code=404, detail="Environment not found")
     
+    log_action(db, "DELETE_ENVIRONMENT", admin_user.id, db_env.name, db_env.description, None, environment_id=db_env.id, commit=False)
     db.delete(db_env)
     db.commit()
     return None

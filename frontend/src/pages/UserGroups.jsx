@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api';
-import { Users, Plus, UserPlus, Shield, Trash2 } from 'lucide-react';
+import { Users, Plus, UserPlus, Shield } from 'lucide-react';
+import { useLanguage } from '../i18n.jsx';
 
-const UserGroups = () => {
+const UserGroups = ({ isAdmin = false }) => {
+    const { t } = useLanguage();
     const [groups, setGroups] = useState([]);
     const [users, setUsers] = useState([]);
     const [newGroupName, setNewGroupName] = useState('');
     const [selectedGroup, setSelectedGroup] = useState(null);
-
-    useEffect(() => {
-        fetchGroups();
-        fetchUsers();
-    }, []);
 
     const fetchGroups = async () => {
         const res = await api.get('/groups/');
@@ -22,7 +19,7 @@ const UserGroups = () => {
         try {
             const res = await api.get('/auth/users');
             setUsers(res.data);
-        } catch (e) { console.error("Could not fetch users"); }
+        } catch (error) { console.error("Could not fetch users", error); }
     };
 
     const createGroup = async (e) => {
@@ -36,34 +33,41 @@ const UserGroups = () => {
     const addUserToGroup = async (groupId, userId) => {
         await api.post(`/groups/${groupId}/add-user/${userId}`);
         fetchUsers(); 
-        alert("User assigned to group!");
+        alert(t('User assigned to group!'));
     };
+
+    useEffect(() => {
+        const loadData = async () => {
+            await Promise.all([fetchGroups(), fetchUsers()]);
+        };
+        loadData().catch((error) => console.error("Could not load user groups", error));
+    }, []);
 
     return (
         <div className="max-w-5xl mx-auto p-6 space-y-8">
             <div className="border-b pb-6">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">User Groups</h1>
-                <p className="text-slate-500 font-medium">Create segments for targeted feature rollouts.</p>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t('User Groups')}</h1>
+                <p className="text-slate-500 font-medium">{t('Create segments for targeted feature rollouts.')}</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
                 {/* Left Column: Create & List Groups */}
                 <div className="md:col-span-1 space-y-6">
-                    <form onSubmit={createGroup} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">New Group</h2>
+                    {isAdmin && <form onSubmit={createGroup} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400">{t('New Group')}</h2>
                         <input 
                             className="w-full bg-slate-50 border-none p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold"
-                            placeholder="e.g. Beta Testers"
+                            placeholder={t('e.g. Beta Testers')}
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
                         />
                         <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700">
-                            <Plus size={18}/> Create
+                            <Plus size={18}/> {t('Create')}
                         </button>
-                    </form>
+                    </form>}
 
                     <div className="space-y-2">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 ml-2">Available Groups</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 ml-2">{t('Available Groups')}</h2>
                         {groups.map(group => (
                             <div 
                                 key={group.id} 
@@ -86,8 +90,8 @@ const UserGroups = () => {
                         <div className="bg-white rounded-4xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-800 italic uppercase">Manage: {selectedGroup.name}</h2>
-                                    <p className="text-sm text-slate-500">Assign users to this segment</p>
+                                    <h2 className="text-2xl font-black text-slate-800 italic uppercase">{t('Manage')}: {selectedGroup.name}</h2>
+                                    <p className="text-sm text-slate-500">{t('Assign users to this segment')}</p>
                                 </div>
                                 <Users className="text-slate-300" size={32} />
                             </div>
@@ -96,8 +100,8 @@ const UserGroups = () => {
                                 <table className="w-full">
                                     <thead>
                                         <tr className="text-left text-xs font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="pb-4 px-2">User Email</th>
-                                            <th className="pb-4 px-2 text-right">Action</th>
+                                            <th className="pb-4 px-2">{t('User Email')}</th>
+                                            <th className="pb-4 px-2 text-right">{t('Action')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -106,11 +110,11 @@ const UserGroups = () => {
                                                 <td className="py-4 px-2">
                                                     <div className="font-bold text-slate-700">{user.email}</div>
                                                     <div className="text-[10px] text-slate-400 uppercase font-black">
-                                                        Current Group: {user.group_id ? groups.find(g => g.id === user.group_id)?.name : 'NONE'}
+                                                        {t('Current Group')}: {user.group_id ? groups.find(g => g.id === user.group_id)?.name : t('NONE')}
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-2 text-right">
-                                                    <button 
+                                                    {isAdmin && <button
                                                         onClick={() => addUserToGroup(selectedGroup.id, user.id)}
                                                         disabled={user.group_id === selectedGroup.id}
                                                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -119,8 +123,8 @@ const UserGroups = () => {
                                                             : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
                                                         }`}
                                                     >
-                                                        {user.group_id === selectedGroup.id ? 'Already In Group' : 'Add to Group'}
-                                                    </button>
+                                                        {user.group_id === selectedGroup.id ? t('Already In Group') : t('Add to Group')}
+                                                    </button>}
                                                 </td>
                                             </tr>
                                         ))}
@@ -131,7 +135,7 @@ const UserGroups = () => {
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-100 rounded-4xl p-20">
                             <UserPlus size={48} className="mb-4 opacity-20"/>
-                            <p className="font-bold text-lg italic">Select a group from the left to manage members</p>
+                            <p className="font-bold text-lg italic">{t('Select a group from the left to manage members')}</p>
                         </div>
                     )}
                 </div>

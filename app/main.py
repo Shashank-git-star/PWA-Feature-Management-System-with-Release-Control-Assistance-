@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import environment, feature_flag, override, auth, flag_evaluation, user_group, targeting, audit_log
+from app.routers import environment, feature_flag, override, auth, flag_evaluation, user_group, targeting, audit_log, analytics
 from app.database import engine, Base
 from app import models
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +15,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(audit_log.router)
+app.include_router(analytics.router)
 app.include_router(environment.router)
 app.include_router(feature_flag.router)
 app.include_router(override.router)

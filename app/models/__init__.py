@@ -5,3 +5,4 @@ from app.models.audit_log import AuditLogModel
 from app.models.targeting_rule import TargetingRuleModel
 from app.models.user import UserModel
 from app.models.user_group import UserGroupModel
+from app.models.evaluation_event import EvaluationEventModel

@@ -10,7 +10,11 @@ class AuditLogModel(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=True) # Will link to User table
-    action = Column(String, nullable=False)   # e.g., "CREATE_FLAG", "UPDATE_FLAG", "TOGGLE_FLAG"
-    details = Column(String, nullable=False)  # Description of what changed
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String, nullable=False)
+    flag_id = Column(Integer, ForeignKey("feature_flags.id"), nullable=True)
+    environment_id = Column(Integer, ForeignKey("environments.id"), nullable=True)
+    old_state = Column(String, nullable=True)
+    new_state = Column(String, nullable=True)
+    details = Column(String, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(INDIA_TIMEZONE), server_default=func.now())

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import { Plus, Trash2, Settings2, Globe, Activity, Cpu, Layers, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { useLanguage } from '../i18n.jsx';
 
-const FlagDashboard = () => {
+const FlagDashboard = ({ isAdmin = false }) => {
+    const { t } = useLanguage();
     const [flags, setFlags] = useState([]);
     const [envs, setEnvs] = useState([]);
     const [overrides, setOverrides] = useState([]);
+    const [rolloutDrafts, setRolloutDrafts] = useState({});
     const [showModal, setShowModal] = useState(false);
     const emptyFlag = { key: '', description: '', owner_team: '', flag_type: 'boolean', default_value: 'false', enabled: true, rollout_percentage: 100 };
     const [newFlag, setNewFlag] = useState(emptyFlag);
@@ -46,7 +49,7 @@ const FlagDashboard = () => {
             fetchData();
         } catch (err) {
             console.error("Create error", err);
-            alert("Failed to create flag");
+            alert(t('Failed to create flag'));
         }
     };
 
@@ -62,7 +65,7 @@ const FlagDashboard = () => {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this component?")) {
+        if (window.confirm(t("Are you sure you want to delete this component?"))) {
             try {
                 await api.delete(`/flags/${id}`);
                 fetchData();
@@ -72,18 +75,37 @@ const FlagDashboard = () => {
         }
     };
 
-    const handleRolloutChange = async (id, val) => {
-        const numericVal = parseInt(val);
-        setFlags(flags.map(f => f.id === id ? { ...f, rollout_percentage: numericVal } : f));
+    const handleRolloutChange = (id, val) => {
+        setRolloutDrafts((drafts) => ({ ...drafts, [id]: Number(val) }));
+    };
+
+    const saveRolloutPercentage = async (id, val) => {
+        const numericVal = Number(val);
         const flag = flags.find(f => f.id === id);
-        if (flag) {
-            await api.put(`/flags/${id}`, { 
+        if (!flag) return;
+
+        setRolloutDrafts((drafts) => {
+            const nextDrafts = { ...drafts };
+            delete nextDrafts[id];
+            return nextDrafts;
+        });
+        if (numericVal === flag.rollout_percentage) return;
+
+        setFlags((currentFlags) => currentFlags.map((currentFlag) => (
+            currentFlag.id === id ? { ...currentFlag, rollout_percentage: numericVal } : currentFlag
+        )));
+        try {
+            await api.put(`/flags/${id}`, {
                 key: flag.key,
                 description: flag.description,
                 owner_team: flag.owner_team,
                 enabled: flag.enabled,
-                rollout_percentage: numericVal 
+                rollout_percentage: numericVal
             });
+        } catch (error) {
+            console.error('Rollout update failed', error);
+            alert(t('Failed to update rollout percentage'));
+            fetchData();
         }
     };
 
@@ -109,28 +131,26 @@ const FlagDashboard = () => {
     };
 
     return (
-        <div className="min-h-screen space-y-12">
-            
+        <div className="space-y-8 sm:space-y-12">
             {/* --- Interface --- */}
-            <section className="relative bg-white rounded-[3rem] p-12 overflow-hidden shadow-2xl border border-slate-100">
-                <div className="absolute top-0 right-0 p-20 opacity-5">
+            <section className="flag-hero relative overflow-hidden rounded-3xl border border-blue-100 p-6 shadow-xl sm:rounded-[3rem] sm:p-10 lg:p-12">
+                <div className="absolute right-0 top-0 hidden p-12 opacity-10 sm:block lg:p-20">
                     <Cpu size={300} />
                 </div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                     <div>
+                        <h1 className="text-4xl font-black leading-tight tracking-tighter text-slate-900 sm:text-5xl lg:text-6xl">{t('Flag')} <span className="text-blue-600">{t('Management')}</span></h1>
                         <div className="flex items-center gap-3 mb-4">
-                            <span className="bg-blue-600 h-1 w-12 rounded-full"></span>
-                            <span className="text-blue-600 font-black uppercase tracking-[0.4em] text-xs">Flag Management</span>
+                            <span className="bg-blue-600 h-1 w-10 rounded-full"></span>
+                            <p className="mt-3 max-w-xl text-base font-medium text-slate-600 sm:mt-4 sm:text-xl">{t('Configure, rollout, and manage environment-specific feature logic.')}</p>
                         </div>
-                        <h1 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">Control <span className="text-blue-600">Dashboard</span></h1>
-                        <p className="mt-4 text-slate-500 text-xl font-medium max-w-xl">Configure, rollout, and manage environment-specific feature logic.</p>
                     </div>
-                    <button 
+                    {isAdmin && <button
                         onClick={() => setShowModal(true)}
-                        className="bg-slate-900 text-white hover:bg-blue-600 px-12 py-6 rounded-4xl font-black text-xl transition-all duration-500 shadow-[0_20px_40px_rgba(0,0,0,0.1)] active:scale-95 flex items-center gap-4 cursor-pointer"
+                        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-300 hover:bg-blue-700 active:scale-95 sm:w-auto sm:gap-4 sm:rounded-4xl sm:px-10 sm:py-5 sm:text-lg"
                     >
-                        <Plus size={32} /> CREATE FLAG
-                    </button>
+                        <Plus size={32} /> {t('CREATE FLAG')}
+                    </button>}
                 </div>
             </section>
 
@@ -139,17 +159,17 @@ const FlagDashboard = () => {
                 <div className="fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl border border-slate-100">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-2xl font-black text-slate-900">Create New Feature Flag</h3>
+                            <h3 className="text-2xl font-black text-slate-900">{t('Create New Feature Flag')}</h3>
                             <button onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:text-slate-700 cursor-pointer">
                                 <X size={24} />
                             </button>
                         </div>
                         <form onSubmit={handleCreateFlag} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Flag Key</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Flag Key')}</label>
                                 <input 
                                     type="text" 
-                                    placeholder="e.g. new_dashboard"
+                                    placeholder={t('e.g. new_dashboard')}
                                     value={newFlag.key}
                                     onChange={(e) => setNewFlag({ ...newFlag, key: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-medium text-slate-900 focus:outline-none focus:border-blue-600"
@@ -157,9 +177,9 @@ const FlagDashboard = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Description</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Description')}</label>
                                 <textarea 
-                                    placeholder="Feature description"
+                                    placeholder={t('Feature description')}
                                     value={newFlag.description}
                                     onChange={(e) => setNewFlag({ ...newFlag, description: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-medium text-slate-900 focus:outline-none focus:border-blue-600"
@@ -167,40 +187,40 @@ const FlagDashboard = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Flag Type</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Flag Type')}</label>
                                 <select 
                                     value={newFlag.flag_type}
                                     onChange={(e) => setNewFlag({ ...newFlag, flag_type: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-medium text-slate-900 focus:outline-none focus:border-blue-600"
                                 >
-                                    <option value="boolean">Boolean</option>
-                                    <option value="string">String</option>
-                                    <option value="number">Number</option>
+                                    <option value="boolean">{t('Boolean')}</option>
+                                    <option value="string">{t('String')}</option>
+                                    <option value="number">{t('Number')}</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Default Value</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Default Value')}</label>
                                 <select 
                                     value={newFlag.default_value}
                                     onChange={(e) => setNewFlag({ ...newFlag, default_value: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-medium text-slate-900 focus:outline-none focus:border-blue-600"
                                 >
-                                    <option value="false">False</option>
-                                    <option value="true">True</option>
+                                    <option value="false">{t('False')}</option>
+                                    <option value="true">{t('True')}</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Owner Team</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Owner Team')}</label>
                                 <input 
                                     type="text" 
-                                    placeholder="e.g. Core Team"
+                                    placeholder={t('e.g. Core Team')}
                                     value={newFlag.owner_team}
                                     onChange={(e) => setNewFlag({ ...newFlag, owner_team: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-medium text-slate-900 focus:outline-none focus:border-blue-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                                <span className="text-xs font-black uppercase text-slate-500">Initial State (Enabled)</span>
+                                <span className="text-xs font-black uppercase text-slate-500">{t('Initial State (Enabled)')}</span>
                                 <input 
                                     type="checkbox" 
                                     checked={newFlag.enabled}
@@ -209,7 +229,7 @@ const FlagDashboard = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">Initial Rollout Percentage</label>
+                                <label className="block text-xs font-black uppercase text-slate-400 mb-2">{t('Initial Rollout Percentage')}</label>
                                 <input 
                                     type="number" 
                                     min="0" 
@@ -225,13 +245,13 @@ const FlagDashboard = () => {
                                     onClick={() => setShowModal(false)}
                                     className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
                                 >
-                                    Cancel
+                                    {t('Cancel')}
                                 </button>
                                 <button 
                                     type="submit"
                                     className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-600/30 cursor-pointer"
                                 >
-                                    Save Flag
+                                    {t('Save Flag')}
                                 </button>
                             </div>
                         </form>
@@ -242,7 +262,7 @@ const FlagDashboard = () => {
             {/* --- GRID OF FEATURE --- */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                 {flags.map(flag => (
-                    <div key={flag.id} className="feature-card rounded-[3.5rem] flex flex-col bg-white shadow-xl border border-slate-100 overflow-hidden">
+                    <div key={flag.id} className="feature-card flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg sm:rounded-[2.5rem]">
                         
                         {/* HEADER ( IDENTITY ) */}
                         <div className="p-10 flex justify-between items-start border-b border-slate-100">
@@ -254,17 +274,17 @@ const FlagDashboard = () => {
                                     <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">{flag.key}</h3>
                                     <div className="flex items-center gap-2 mt-2">
                                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{flag.owner_team || 'Unassigned'}</span>
+                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{flag.owner_team || t('Unassigned')}</span>
                                         <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">
-                                            {flag.flag_type} · default {flag.default_value}
+                                            {t(flag.flag_type)} · {t('default')} {t(String(flag.default_value))}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
                             <div 
-                                onClick={() => toggleFlag(flag)}
-                                className={`group h-12 w-24 rounded-full p-1.5 cursor-pointer transition-colors duration-300 flex items-center ${flag.enabled ? 'bg-green-500' : 'bg-slate-300'}`}
+                                onClick={isAdmin ? () => toggleFlag(flag) : undefined}
+                                className={`group h-12 w-24 rounded-full p-1.5 transition-colors duration-300 flex items-center ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} ${flag.enabled ? 'bg-green-500' : 'bg-slate-300'}`}
                             >
                                 <div className={`h-9 w-9 bg-white rounded-full shadow-2xl flex items-center justify-center transition-transform duration-300 ${flag.enabled ? 'translate-x-12' : 'translate-x-0'}`}>
                                     <Cpu size={18} className={flag.enabled ? 'text-green-600' : 'text-slate-400'} />
@@ -280,23 +300,31 @@ const FlagDashboard = () => {
                                 <div className="flex justify-between items-end">
                                     <div className="space-y-1">
                                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                                            <Activity size={14} className="text-blue-500" /> Percentage
+                                            <Activity size={14} className="text-blue-500" /> {t('Percentage')}
                                         </h4>
                                     </div>
-                                    <div className="text-6xl font-black text-blue-600 tracking-tighter leading-none">{flag.rollout_percentage || 0}<span className="text-xl">%</span></div>
+                                    <div className="text-4xl font-black leading-none tracking-tighter text-blue-600 sm:text-5xl lg:text-6xl">{rolloutDrafts[flag.id] ?? flag.rollout_percentage ?? 0}<span className="text-xl">%</span></div>
                                 </div>
                                 
                                 <div className="relative">
                                     <div className="h-4 bg-slate-100 rounded-full border border-slate-200 overflow-hidden shadow-inner p-1">
                                         <div 
                                             className="h-full bg-linear-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
-                                            style={{ width: `${flag.rollout_percentage || 0}%` }}
+                                            style={{ width: `${rolloutDrafts[flag.id] ?? flag.rollout_percentage ?? 0}%` }}
                                         />
                                     </div>
                                     <input 
                                         type="range" min="0" max="100" 
-                                        value={flag.rollout_percentage || 0} 
+                                        value={rolloutDrafts[flag.id] ?? flag.rollout_percentage ?? 0}
                                         onChange={(e) => handleRolloutChange(flag.id, e.target.value)}
+                                        onPointerUp={(e) => saveRolloutPercentage(flag.id, e.currentTarget.value)}
+                                        onKeyUp={(e) => {
+                                            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
+                                                saveRolloutPercentage(flag.id, e.currentTarget.value);
+                                            }
+                                        }}
+                                        onBlur={(e) => saveRolloutPercentage(flag.id, e.currentTarget.value)}
+                                        disabled={!isAdmin}
                                         className="absolute -top-1 left-0 w-full opacity-0 h-6 cursor-pointer z-10"
                                     />
                                 </div>
@@ -305,7 +333,7 @@ const FlagDashboard = () => {
                             {/* ENVIRONMENT */}
                             <div className="space-y-6 pt-6 border-t border-slate-50">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <Globe size={14} className="text-orange-500" /> Flag Force Toggle
+                                    <Globe size={14} className="text-orange-500" /> {t('Flag Force Toggle')}
                                 </h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     {envs.map(env => {
@@ -314,11 +342,12 @@ const FlagDashboard = () => {
                                             <button 
                                                 key={env.id}
                                                 onClick={() => handleOverrideToggle(flag.id, env.id)}
+                                                disabled={!isAdmin}
                                                 className={`p-6 rounded-4xl border-2 transition-all flex flex-col items-center justify-center gap-2 group/btn active:scale-90 cursor-pointer ${state.bg} ${state.text} ${state.label === 'DEFAULT' ? 'border-slate-100 hover:border-blue-400 bg-slate-50 text-slate-600' : 'border-transparent shadow-lg'}`}
                                             >
                                                 <span className="text-[10px] font-black tracking-widest uppercase opacity-70">{env.name}</span>
                                                 <div className="flex items-center gap-2 font-black text-xs uppercase tracking-tighter">
-                                                    {state.icon} {state.label}
+                                                    {state.icon} {t(state.label)}
                                                 </div>
                                             </button>
                                         );
@@ -328,15 +357,15 @@ const FlagDashboard = () => {
                         </div>
 
                         {/* FOOTER */}
-                        <div className="p-8 bg-slate-50/50 flex justify-between items-center rounded-b-[3.5rem] border-t border-slate-100">
+                        <div className="flex items-center justify-between gap-3 rounded-b-3xl border-t border-slate-100 bg-slate-50/70 p-5 sm:rounded-b-[2.5rem] sm:p-8">
                             <div>
-                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Flag Description</h4>
-                                <p className="text-xs text-slate-500 font-medium italic mt-1">"{flag.description || 'System controlled'}"</p>
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{t('Flag Description')}</h4>
+                                <p className="text-xs text-slate-500 font-medium italic mt-1">"{flag.description || t('System controlled')}"</p>
                             </div>
-                            <button onClick={() => handleDelete(flag.id)} className="group flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all cursor-pointer">
+                            {isAdmin && <button onClick={() => handleDelete(flag.id)} className="group flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all cursor-pointer">
                                 <Trash2 size={16} className="group-hover:rotate-12 transition-transform"/>
-                                <span className="text-[10px] font-black uppercase tracking-widest">Delete Component</span>
-                            </button>
+                                <span className="text-[10px] font-black uppercase tracking-widest">{t('Delete Component')}</span>
+                            </button>}
                         </div>
                     </div>
                 ))}
