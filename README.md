@@ -1,50 +1,62 @@
-# Feature Flag Management System
+# Infy Project
 
-Manage feature flags by environment, evaluate their effective values, and control releases with environment overrides and targeting rules. FastAPI provides the API and React/Vite provides the dashboard.
+Infy is a web-based feature flag management system. It helps teams release features gradually, target specific users or groups, and control behavior by environment—without needing to redeploy the application for every release change.
 
-## Start the full stack (development)
+## What it does
 
-Requires Docker Desktop or Docker Engine with the Compose plugin.
+- Create and manage feature flags, environments, and environment overrides.
+- Evaluate a flag for a user or group, using targeting rules and percentage rollouts.
+- Manage users and groups, with bearer-token login and admin-only configuration changes.
+- Review audit logs and analytics to understand configuration changes and flag evaluations.
+- Explore the built-in SDK documentation and API reference.
 
-```powershell
-Copy-Item .env.example .env.docker
+## How it fits together
+
+```text
+┌────────────────────────┐       HTTP / bearer token       ┌─────────────────────┐
+│ React + Vite dashboard │ ───────────────────────────────> │ FastAPI application │
+└────────────────────────┘                                  └──────────┬──────────┘
+                                                                      │
+                                                ┌─────────────────────┴────────────────┐
+                                                │                                      │
+                                       ┌────────▼────────┐                   ┌────────▼────────┐
+                                       │   PostgreSQL    │                   │      Redis      │
+                                       │ flags and audit │                   │ evaluation cache│
+                                       └─────────────────┘                   └─────────────────┘
 ```
 
-Edit `.env.docker` and replace the database password and `AUTH_TOKEN_SECRET` with separate random values. Generate each value with:
+## Run locally with Docker Compose
 
-```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
+Requirements: Docker Desktop (or Docker Engine) with the Compose plugin.
 
-Then, from the repository root:
+1. From the project root, create a local environment file:
 
-```powershell
-docker compose --env-file .env.docker up --build
-```
+   ```powershell
+   Copy-Item .env.example .env.docker
+   ```
 
-Open the dashboard at **http://localhost:5173** and the interactive API docs at **http://localhost:8000/docs**. The Compose workflow runs PostgreSQL, Redis, FastAPI, and Vite with source hot reload. PostgreSQL data is stored in the `postgres_data` volume; Redis is a disposable cache.
+2. Edit `.env.docker` and set a strong database password and `AUTH_TOKEN_SECRET`. Keep this file private; it is excluded from Git.
+3. Start the application:
 
-Stop the services with `Ctrl+C`, or run:
+   ```powershell
+   docker compose --env-file .env.docker up -d --build
+   ```
 
-```powershell
-docker compose --env-file .env.docker down
-```
+   For later starts, use `docker compose --env-file .env.docker up -d`—`--build` is only needed after image or dependency changes.
 
-To also delete the database and all stored data, run `docker compose --env-file .env.docker down --volumes`.
+4. Open the dashboard at **http://localhost:5173**. The API is at **http://localhost:8000**, with interactive Swagger docs at **http://localhost:8000/docs**.
 
-## First administrator
-
-Sign up through the dashboard or `POST /auth/signup`; new accounts are regular users. To grant administrator access to a trusted account, run this from the repository root, replacing the email with that account:
+Sign up in the dashboard to create an account. New accounts are regular users; grant administrator access only to trusted accounts. For example, from the project root, replace the email below with the account to promote:
 
 ```powershell
 docker compose --env-file .env.docker exec postgres psql -U infy_app -d infy_project -c "UPDATE users SET is_admin = TRUE WHERE email = 'admin@example.com';"
 ```
 
-Afterward, sign in again and use the dashboard normally. For Swagger, choose **Authorize** and paste the login response's raw `access_token`.
+## Technology
 
-## Configuration and deployment notes
+- **Frontend:** React, Vite
+- **Backend:** Python, FastAPI, SQLAlchemy
+- **Data and cache:** PostgreSQL, Redis
+- **Local orchestration:** Docker Compose
 
-- `.env.docker` is ignored by Git; never commit real passwords or signing keys.
-- If ports `5173`, `8000`, or `5433` are already in use, stop the conflicting local service or change the corresponding port in `docker-compose.yml`/`.env.docker`.
-- The Compose file is intended for local development, not direct public deployment. Before production, disable Vite/Uvicorn reload, serve the frontend with a production web server, use managed secrets, and put the services behind HTTPS.
-- The current backend creates tables at startup with SQLAlchemy `create_all`; plan and apply versioned database migrations before evolving a production schema.
+> The included Compose setup is for local development. Prepare production settings separately: use HTTPS, managed secrets, production frontend serving, and a versioned database migration process.
