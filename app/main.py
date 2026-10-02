@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from app.routers import environment, feature_flag, override, auth, flag_evaluation, user_group, targeting, audit_log, analytics
 from app.database import engine, Base
 from app import models
+from app.models.targeting_rule import ensure_target_uniqueness
 from fastapi.middleware.cors import CORSMiddleware
 
 Base.metadata.create_all(bind=engine)
+ensure_target_uniqueness(engine)
 
 app = FastAPI(
     title="Infy Project",

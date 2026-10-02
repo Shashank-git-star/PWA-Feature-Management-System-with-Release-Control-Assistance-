@@ -38,6 +38,11 @@ const TargetingRules = ({ isAdmin = false }) => {
         setRules(res.data);
     };
 
+    const existingTargetRule = rules.find((rule) =>
+        rule.target_type.toUpperCase() === newRule.target_type
+        && String(rule.target_identifier) === String(Number(newRule.target_identifier))
+    );
+
     const handleAddRule = async (e) => {
         e.preventDefault();
         if (!selectedFlagId) {
@@ -179,8 +184,13 @@ const TargetingRules = ({ isAdmin = false }) => {
                                 </button>
                             </div>
 
-                            <button disabled={isSaving} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
-                                <Plus size={18}/> {isSaving ? t('PLEASE WAIT...') : t('Apply Rule')}
+                            {existingTargetRule && (
+                                <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
+                                    {t('This target already has a rule. Applying the other state will update that rule instead of creating a duplicate.')}
+                                </p>
+                            )}
+                            <button disabled={isSaving || (existingTargetRule && existingTargetRule.value === newRule.value)} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                <Plus size={18}/> {isSaving ? t('PLEASE WAIT...') : existingTargetRule ? t('Update Rule State') : t('Apply Rule')}
                             </button>
                         </form>
                     )}

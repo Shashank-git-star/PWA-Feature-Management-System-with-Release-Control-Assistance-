@@ -293,29 +293,28 @@ export default function SDKDocs() {
                     <Rocket className="shrink-0 text-blue-600" size={21} />
                     <div>
                         <h2 className="text-lg font-black text-slate-900">{t('Deployment guide')}</h2>
-                        <p className="text-sm text-slate-500">{t('Current local run workflow and Docker Compose deployment notes.')}</p>
+                        <p className="text-sm text-slate-500">{t('Start the complete development stack with Docker Compose.')}</p>
                     </div>
                 </div>
                 <div className="space-y-4 text-sm leading-6 text-slate-700">
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                         <p className="font-black text-amber-950">{t('Docker Compose status')}</p>
-                        <p className="mt-1 text-xs leading-5 text-amber-900">{t('This repository currently has no Dockerfile or Docker Compose manifest. The stack needs PostgreSQL and Redis; Redis is configured for localhost in the current backend. The commands below run those dependencies with Compose while the API and UI run locally.')}</p>
+                        <p className="mt-1 text-xs leading-5 text-amber-900">{t('This repository has a Docker Compose development stack for PostgreSQL, Redis, FastAPI, and the Vite frontend with source hot reload.')}</p>
                     </div>
                     <ol className="list-inside list-decimal space-y-2">
-                        <li>{t('Install Docker Desktop (or Docker Engine with the Compose plugin), Python dependencies, and Node.js.')}</li>
-                        <li>{t('Start PostgreSQL and Redis containers using your Compose file and expose their ports to the host (5432 and 6379).')}</li>
+                        <li>{t('Install Docker Desktop (or Docker Engine with the Compose plugin).')}</li>
+                        <li>{t('Copy .env.example to .env.docker and set different random values for the database password and AUTH_TOKEN_SECRET.')}</li>
                         <li>{t('Set DATABASE_URL in the backend environment to your PostgreSQL URL, for example:')} <code className="break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs">postgresql://&lt;user&gt;:&lt;password&gt;@localhost:5432/&lt;database&gt;</code>.</li>
-                        <li>{t('Set AUTH_TOKEN_SECRET to a random value with at least 32 characters. Generate one with:')} <code className="break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs">python -c "import secrets; print(secrets.token_urlsafe(48))"</code>.</li>
-                        <li>{t('In one terminal, activate the Python environment and run')} <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">uvicorn app.main:app --reload</code> {t('from the repository root.')}</li>
-                        <li>{t('In another terminal, run')} <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">npm install</code> {t('and')} <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">npm run dev</code> {t('from')} <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">frontend/</code>.</li>
+                        <li>{t('Start all services from the repository root with:')} <code className="break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs">docker compose --env-file .env.docker up --build</code>.</li>
                         <li>{t('Open the frontend at')} <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">http://localhost:5173</code>; {t('the API and interactive docs are at port 8000.')}</li>
                     </ol>
+                    <p>{t('Compose configures DATABASE_URL and REDIS_URL for the API; set VITE_API_BASE_URL only when the browser needs a different API address.')}</p>
                     <pre className={codeBlockClass}>{`# Check local service health
 curl http://localhost:8000/
 
 # OpenAPI interactive docs
 http://localhost:8000/docs`}</pre>
-                    <p className="text-xs leading-5 text-slate-500">{t('Before production deployment, add maintained API/UI container images and a Compose manifest, configure the Redis host and frontend API URL for the deployment network, disable development reload, use secrets for credentials, and terminate TLS at a trusted proxy.')}</p>
+                    <p className="text-xs leading-5 text-slate-500">{t('This Compose setup is for local development with hot reload. For production, disable reload, use a production frontend server, protect secrets, and terminate TLS at a trusted proxy.')}</p>
                 </div>
             </section>
 
@@ -329,10 +328,10 @@ http://localhost:8000/docs`}</pre>
                 </div>
                 <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-700">
                     <li>{t('Authentication uses signed, expiring bearer tokens. Set AUTH_TOKEN_SECRET before starting the API; signing keys are not stored in the database.')}</li>
-                    <li>{t('Redis is configured at localhost:6379 in code, and evaluation cache entries last 300 seconds. Production cache host and availability handling are not configurable in this version.')}</li>
-                    <li>{t('The frontend API base URL is currently http://localhost:8000; deployment behind another host or path needs configuration work.')}</li>
+                    <li>{t('Redis is configured through REDIS_URL, and evaluation cache entries last 300 seconds.')}</li>
+                    <li>{t('Set VITE_API_BASE_URL to configure the API address used by the frontend.')}</li>
                     <li>{t('Evaluation and analytics depend on event rows written to PostgreSQL; large event volumes need retention and indexing policies.')}</li>
-                    <li>{t('The current checkout has no full-stack Docker Compose deployment manifest; follow the deployment notes above and treat container deployment as future work.')}</li>
+                    <li>{t('The current Compose setup is for local development. Use a production server and TLS proxy before exposing it publicly.')}</li>
                 </ul>
             </section>
         </main>

@@ -1,12 +1,11 @@
-import redis
 import json
+import os
 
-redis_client = redis.Redis(
-    host='localhost', 
-    port=6379, 
-    db=0, 
-    decode_responses=True, 
-    protocol=2
+import redis
+
+redis_client = redis.Redis.from_url(
+    os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    decode_responses=True,
 )
 
 def get_cached_evaluation(flag_key, env, user_id, group_id=None):

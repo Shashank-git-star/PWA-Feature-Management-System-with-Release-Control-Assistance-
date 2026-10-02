@@ -139,7 +139,7 @@ const UserGroups = ({ isAdmin = false }) => {
                                 <table className="w-full min-w-[34rem]">
                                     <thead>
                                         <tr className="text-left text-xs font-black text-slate-400 uppercase tracking-widest">
-                                            <th className="pb-4 px-2">{t('User Email')}</th>
+                                            <th className="pb-4 px-2">{t('User ID')}</th>
                                             <th className="pb-4 px-2 text-right">{t('Action')}</th>
                                         </tr>
                                     </thead>
@@ -147,7 +147,7 @@ const UserGroups = ({ isAdmin = false }) => {
                                         {users.map(user => (
                                             <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="py-4 px-2">
-                                                    <div className="break-all font-bold text-slate-700">{user.email}</div>
+                                                    <div className="font-bold text-slate-700">{t('User ID')}: {user.id}</div>
                                                     <div className="text-[10px] text-slate-400 uppercase font-black">
                                                         {t('Current Group')}: {user.group_id ? groups.find(g => g.id === user.group_id)?.name : t('NONE')}
                                                     </div>
