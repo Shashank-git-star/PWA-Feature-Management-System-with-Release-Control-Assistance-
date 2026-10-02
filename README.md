@@ -1,6 +1,6 @@
-# Infy Project
+# Feature Flag Mangement System
 
-Infy is a web-based feature flag management system. It helps teams release features gradually, target specific users or groups, and control behavior by environment—without needing to redeploy the application for every release change.
+It is a web-based feature flag management system. It helps teams release features gradually, target specific users or groups, and control behavior by environment—without needing to redeploy the application for every release change.
 
 ## What it does
 
