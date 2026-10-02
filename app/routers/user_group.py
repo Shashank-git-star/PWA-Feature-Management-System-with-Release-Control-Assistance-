@@ -6,9 +6,13 @@ from app.models.user import UserModel
 from app.schemas.targeting import UserGroupCreate, UserGroupResponse
 from typing import List
 from app.services.audit import log_action
-from app.routers.auth import require_admin
+from app.routers.auth import get_current_user, require_admin
 
-router = APIRouter(prefix="/groups", tags=["User Groups"])
+router = APIRouter(
+    prefix="/groups",
+    tags=["User Groups"],
+    dependencies=[Depends(get_current_user)],
+)
 
 @router.post("/", response_model=UserGroupResponse)
 def create_group(group: UserGroupCreate, db: Session = Depends(get_db), admin_user=Depends(require_admin)):

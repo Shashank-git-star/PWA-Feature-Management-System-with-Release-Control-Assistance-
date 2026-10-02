@@ -5,9 +5,13 @@ from app.database import get_db
 from app.models import EnvironmentModel
 from app.schemas.environment import EnvironmentCreate, EnvironmentResponse
 from app.services.audit import log_action
-from app.routers.auth import require_admin
+from app.routers.auth import get_current_user, require_admin
 
-router = APIRouter(prefix="/environments", tags=["Environments"])
+router = APIRouter(
+    prefix="/environments",
+    tags=["Environments"],
+    dependencies=[Depends(get_current_user)],
+)
 
 # CREATE
 @router.post("/", response_model=EnvironmentResponse, status_code=status.HTTP_201_CREATED)

@@ -7,8 +7,13 @@ from app.services.evaluation import evaluate_flag
 from app.models import EnvironmentModel, EvaluationEventModel, FeatureFlagModel
 from fastapi import HTTPException
 from typing import Optional
+from app.routers.auth import get_current_user
 
-router = APIRouter(prefix="/flags", tags=["Flag Evaluation"])
+router = APIRouter(
+    prefix="/flags",
+    tags=["Flag Evaluation"],
+    dependencies=[Depends(get_current_user)],
+)
 
 class EvaluationRequest(BaseModel):
     flag_key: str

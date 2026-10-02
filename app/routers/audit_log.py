@@ -4,8 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.audit_log import AuditLogModel
+from app.routers.auth import get_current_user
 
-router = APIRouter(tags=["Audit Logs"])
+router = APIRouter(
+    tags=["Audit Logs"],
+    dependencies=[Depends(get_current_user)],
+)
 @router.get("/audit-logs")
 def get_audit_logs(
     user_id: Optional[int] = Query(None),

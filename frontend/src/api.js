@@ -5,10 +5,9 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-    const storedUser = localStorage.getItem('infy_user');
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    if (user?.id) {
-        config.headers['x-user'] = String(user.id);
+    const token = localStorage.getItem('infy_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });

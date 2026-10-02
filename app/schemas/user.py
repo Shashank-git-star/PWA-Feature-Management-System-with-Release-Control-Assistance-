@@ -13,6 +13,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     is_admin: bool
+    group_id: Optional[int] = None
 
     class Config:
         from_attributes = True

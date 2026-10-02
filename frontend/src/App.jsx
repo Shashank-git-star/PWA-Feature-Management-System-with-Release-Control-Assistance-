@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
   Globe, Users, Target, FlaskConical,
   Activity, LogOut, Settings, ChevronRight, UserCircle, X, PanelLeftClose, PanelLeftOpen,
-  Flag
+  Flag, BookOpenText
 } from 'lucide-react';
 import api from './api';
 import { LanguageSelector, useLanguage } from './i18n.jsx';
@@ -15,6 +15,7 @@ import UserGroups from './pages/UserGroups';
 import TargetingRules from './pages/TargetingRules';
 import EvaluationTester from './pages/EvaluationTester';
 import AuditLogs from './pages/AuditLogs'; 
+const SDKDocs = lazy(() => import('./pages/SDKDocs'));
 
 const SidebarLink = ({ to, icon, label, onNavigate }) => {
   const location = useLocation();
@@ -90,10 +91,7 @@ const AuthScreen = ({ onAuthenticated }) => {
         });
         token = loginResponse.data.access_token;
 
-        const usersResponse = await api.get('/auth/users');
-        user = usersResponse.data.find((candidate) => candidate.email === form.email) || {
-          email: form.email,
-        };
+        user = loginResponse.data.user;
       }
 
       onAuthenticated(user, token);
@@ -185,14 +183,27 @@ const AuthScreen = ({ onAuthenticated }) => {
 const App = () => {
   const { t, locale } = useLanguage();
   const [user, setUser] = useState(() => {
+    const storedToken = localStorage.getItem('infy_token');
     const storedUser = localStorage.getItem('infy_user');
-    return storedUser ? JSON.parse(storedUser) : null;
+    if (!storedToken || storedToken.split('.').length !== 3 || !storedUser) {
+      localStorage.removeItem('infy_token');
+      localStorage.removeItem('infy_user');
+      return null;
+    }
+    try {
+      return JSON.parse(storedUser);
+    } catch (parseError) {
+      console.warn('Stored user profile is invalid; clearing the saved session.', parseError);
+      localStorage.removeItem('infy_token');
+      localStorage.removeItem('infy_user');
+      return null;
+    }
   });
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
 
   const closeSidebarOnMobile = () => {
-    if (window.matchMedia('(max-width: 767px)').matches) {
+    if (window.matchMedia('(max-width: 1023px)').matches) {
       setIsSidebarOpen(false);
     }
   };
@@ -218,7 +229,7 @@ const App = () => {
         <AuthScreen onAuthenticated={handleAuthenticated} />
       ) : (
       <div className="app-shell flex min-h-screen">
-        <div className={`fixed right-5 top-5 z-50 rounded-xl bg-white p-1 shadow-md ${isSidebarOpen ? 'hidden md:block' : ''}`}>
+        <div className={`fixed right-3 top-3 z-50 rounded-xl bg-white p-1 shadow-md transition-all duration-200 sm:right-5 sm:top-5 ${isSidebarOpen ? 'hidden lg:block' : ''}`}>
           <LanguageSelector />
         </div>
         {isSidebarOpen && (
@@ -226,7 +237,7 @@ const App = () => {
             type="button"
             onClick={() => setIsSidebarOpen(false)}
             aria-label={t('Hide sidebar')}
-            className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] md:hidden"
+            className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] transition-opacity duration-200 lg:hidden"
           />
         )}
         {!isSidebarOpen && (
@@ -235,7 +246,7 @@ const App = () => {
             onClick={() => setIsSidebarOpen(true)}
             aria-label={t('Show sidebar')}
             title={t('Show sidebar')}
-            className="fixed left-4 top-4 z-50 rounded-xl border border-slate-200 bg-white p-3 text-slate-700 shadow-md transition hover:bg-slate-50"
+            className="fixed left-4 top-4 z-50 rounded-xl border border-slate-200 bg-white p-3 text-slate-700 shadow-md transition-all duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <PanelLeftOpen size={20} />
           </button>
@@ -268,7 +279,7 @@ const App = () => {
 
           {/* Navigation Links */}
           <nav className="flex-1 space-y-2 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
-            <div className="sidebar-language mb-6 md:hidden">
+            <div className="sidebar-language mb-6 lg:hidden">
               <LanguageSelector />
             </div>
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-4">{t('Feature Management')}</p>
@@ -282,6 +293,7 @@ const App = () => {
                <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-4">{t('Evaluation & Analytics')}</p>
                <SidebarLink to="/test" icon={<FlaskConical size={20}/>} label={t('Evaluation Tester')} onNavigate={closeSidebarOnMobile} />
                <SidebarLink to="/audit" icon={<Activity size={20}/>} label={t('Audit Logs')} onNavigate={closeSidebarOnMobile} />
+               <SidebarLink to="/sdk-docs" icon={<BookOpenText size={20}/>} label={t('SDK Docs')} onNavigate={closeSidebarOnMobile} />
             </div>
           </nav>
 
@@ -339,7 +351,7 @@ const App = () => {
         </aside>}
 
         {/* --- MAIN INTERACTIVE CONTENT AREA --- */}
-        <main className={`app-main min-w-0 flex-1 px-4 pb-8 pt-20 transition-all sm:px-6 md:pt-24 md:px-8 lg:px-12 ${isSidebarOpen ? 'md:ml-80' : 'ml-0'}`}>
+        <main className={`app-main min-w-0 flex-1 px-4 pb-8 pt-20 transition-[margin,padding] duration-300 ease-out motion-reduce:transition-none sm:px-6 md:pt-24 md:px-8 lg:px-12 ${isSidebarOpen ? 'lg:ml-80' : 'ml-0'}`}>
           <div className="max-w-6xl mx-auto">
             <Routes>
               <Route path="/analytics" element={<AnalyticsOverview />} />
@@ -349,6 +361,7 @@ const App = () => {
               <Route path="/groups" element={<UserGroups isAdmin={user.is_admin === true} />} />
               <Route path="/test" element={<EvaluationTester />} />
               <Route path="/audit" element={<AuditLogs />} />
+              <Route path="/sdk-docs" element={<Suspense fallback={<p className="rounded-2xl bg-white p-6 text-sm font-semibold text-slate-600" role="status">{t('Loading...')}</p>}><SDKDocs /></Suspense>} />
             </Routes>
           </div>
         </main>

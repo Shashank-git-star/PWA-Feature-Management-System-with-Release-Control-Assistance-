@@ -3,12 +3,16 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models import FeatureFlagModel, UserModel
-from app.routers.auth import require_admin
+from app.routers.auth import get_current_user, require_admin
 from app.schemas.feature_flag import FeatureFlagCreate, FeatureFlagUpdate, FeatureFlagResponse
 from app.services.cache import invalidate_flag_cache
 from app.services.audit import log_action
 
-router = APIRouter(prefix="/flags", tags=["Feature Flags"])
+router = APIRouter(
+    prefix="/flags",
+    tags=["Feature Flags"],
+    dependencies=[Depends(get_current_user)],
+)
 
 # CREATE
 @router.post("/", response_model=FeatureFlagResponse, status_code=status.HTTP_201_CREATED)

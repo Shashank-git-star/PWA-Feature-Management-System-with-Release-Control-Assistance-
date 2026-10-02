@@ -6,8 +6,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import AuditLogModel, EnvironmentModel, EvaluationEventModel, FeatureFlagModel
 from app.models.user import UserModel
+from app.routers.auth import get_current_user
 
-router = APIRouter(prefix="/analytics", tags=["Analytics"])
+router = APIRouter(
+    prefix="/analytics",
+    tags=["Analytics"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 def _range(start_date: Optional[date], end_date: Optional[date]):

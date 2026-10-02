@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import { Plus, Trash2, Settings2, Globe, Activity, Cpu, Layers, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { useLanguage } from '../i18n.jsx';
+import { ErrorNotice, LoadingNotice } from '../components/RequestState';
+import { getRequestErrorMessage } from '../requestErrors';
 
 const FlagDashboard = ({ isAdmin = false }) => {
     const { t } = useLanguage();
@@ -10,67 +12,88 @@ const FlagDashboard = ({ isAdmin = false }) => {
     const [overrides, setOverrides] = useState([]);
     const [rolloutDrafts, setRolloutDrafts] = useState({});
     const [showModal, setShowModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isMutating, setIsMutating] = useState(false);
+    const [error, setError] = useState('');
+    const savingRolloutIds = useRef(new Set());
     const emptyFlag = { key: '', description: '', owner_team: '', flag_type: 'boolean', default_value: 'false', enabled: true, rollout_percentage: 100 };
     const [newFlag, setNewFlag] = useState(emptyFlag);
 
-    const fetchData = async () => {
-        try {
-            const [flagsRes, envsRes, overridesRes] = await Promise.all([
-                api.get('/flags/'), api.get('/environments/'), api.get('/overrides/')
-            ]);
-            setFlags(flagsRes.data);
-            setEnvs(envsRes.data);
-            setOverrides(overridesRes.data);
-        } catch (err) { console.error("Sync Error", err); }
-    };
+    const fetchData = useCallback(async () => {
+        const [flagsRes, envsRes, overridesRes] = await Promise.all([
+            api.get('/flags/'), api.get('/environments/'), api.get('/overrides/')
+        ]);
+        setFlags(flagsRes.data);
+        setEnvs(envsRes.data);
+        setOverrides(overridesRes.data);
+    }, []);
 
     useEffect(() => {
-        const loadDashboardData = async () => {
+        let isCurrent = true;
+        const loadDashboard = async () => {
             try {
-                const [flagsRes, envsRes, overridesRes] = await Promise.all([
-                    api.get('/flags/'), api.get('/environments/'), api.get('/overrides/')
-                ]);
-                setFlags(flagsRes.data);
-                setEnvs(envsRes.data);
-                setOverrides(overridesRes.data);
-            } catch (err) {
-                console.error("Sync Error", err);
+                await fetchData();
+            } catch (requestError) {
+                console.error('Flag dashboard sync failed', requestError);
+                if (isCurrent) setError(getRequestErrorMessage(requestError, t('Unable to load feature flags.')));
+            } finally {
+                if (isCurrent) setIsLoading(false);
             }
         };
-        loadDashboardData();
-    }, []);
+        loadDashboard();
+        return () => { isCurrent = false; };
+    }, [fetchData, t]);
 
     const handleCreateFlag = async (e) => {
         e.preventDefault();
+        setIsSaving(true);
+        setError('');
         try {
             await api.post('/flags/', newFlag);
             setShowModal(false);
             setNewFlag(emptyFlag);
-            fetchData();
-        } catch (err) {
-            console.error("Create error", err);
-            alert(t('Failed to create flag'));
+            await fetchData();
+        } catch (requestError) {
+            console.error('Create flag failed', requestError);
+            setError(getRequestErrorMessage(requestError, t('Failed to create flag')));
+        } finally {
+            setIsSaving(false);
         }
     };
 
     const toggleFlag = async (flag) => {
-        await api.put(`/flags/${flag.id}`, { 
-            key: flag.key,
-            description: flag.description,
-            owner_team: flag.owner_team,
-            enabled: !flag.enabled,
-            rollout_percentage: flag.rollout_percentage
-        });
-        fetchData();
+        setIsMutating(true);
+        setError('');
+        try {
+            await api.put(`/flags/${flag.id}`, {
+                key: flag.key,
+                description: flag.description,
+                owner_team: flag.owner_team,
+                enabled: !flag.enabled,
+                rollout_percentage: flag.rollout_percentage
+            });
+            await fetchData();
+        } catch (requestError) {
+            console.error('Flag toggle failed', requestError);
+            setError(getRequestErrorMessage(requestError, t('Unable to update flag.')));
+        } finally {
+            setIsMutating(false);
+        }
     };
 
     const handleDelete = async (id) => {
         if (window.confirm(t("Are you sure you want to delete this component?"))) {
+            setIsMutating(true);
+            setError('');
             try {
                 await api.delete(`/flags/${id}`);
-                fetchData();
-            } catch (err) {
-                console.error("Delete error", err);
+                await fetchData();
+            } catch (requestError) {
+                console.error('Delete flag failed', requestError);
+                setError(getRequestErrorMessage(requestError, t('Unable to delete flag.')));
+            } finally {
+                setIsMutating(false);
             }
         }
     };
@@ -82,7 +105,7 @@ const FlagDashboard = ({ isAdmin = false }) => {
     const saveRolloutPercentage = async (id, val) => {
         const numericVal = Number(val);
         const flag = flags.find(f => f.id === id);
-        if (!flag) return;
+        if (!flag || savingRolloutIds.current.has(id)) return;
 
         setRolloutDrafts((drafts) => {
             const nextDrafts = { ...drafts };
@@ -91,9 +114,12 @@ const FlagDashboard = ({ isAdmin = false }) => {
         });
         if (numericVal === flag.rollout_percentage) return;
 
+        savingRolloutIds.current.add(id);
+        setError('');
         setFlags((currentFlags) => currentFlags.map((currentFlag) => (
             currentFlag.id === id ? { ...currentFlag, rollout_percentage: numericVal } : currentFlag
         )));
+        setIsMutating(true);
         try {
             await api.put(`/flags/${id}`, {
                 key: flag.key,
@@ -104,21 +130,35 @@ const FlagDashboard = ({ isAdmin = false }) => {
             });
         } catch (error) {
             console.error('Rollout update failed', error);
-            alert(t('Failed to update rollout percentage'));
-            fetchData();
+            setFlags((currentFlags) => currentFlags.map((currentFlag) => (
+                currentFlag.id === id ? { ...currentFlag, rollout_percentage: flag.rollout_percentage } : currentFlag
+            )));
+            setError(getRequestErrorMessage(error, t('Failed to update rollout percentage')));
+        } finally {
+            savingRolloutIds.current.delete(id);
+            setIsMutating(false);
         }
     };
 
     const handleOverrideToggle = async (flagId, envId) => {
         const existing = overrides.find(o => o.feature_flag_id === flagId && o.environment_id === envId);
-        if (!existing) {
-            await api.post('/overrides/', { feature_flag_id: flagId, environment_id: envId, value: true, enabled: true });
-        } else if (existing.value === true) {
-            await api.put(`/overrides/${existing.id}`, { value: false });
-        } else {
-            await api.delete(`/overrides/${existing.id}`);
+        setIsMutating(true);
+        setError('');
+        try {
+            if (!existing) {
+                await api.post('/overrides/', { feature_flag_id: flagId, environment_id: envId, value: true, enabled: true });
+            } else if (existing.value === true) {
+                await api.put(`/overrides/${existing.id}`, { value: false });
+            } else {
+                await api.delete(`/overrides/${existing.id}`);
+            }
+            await fetchData();
+        } catch (requestError) {
+            console.error('Override update failed', requestError);
+            setError(getRequestErrorMessage(requestError, t('Unable to update override.')));
+        } finally {
+            setIsMutating(false);
         }
-        fetchData();
     };
 
     const getOverrideState = (flagId, envId) => {
@@ -131,14 +171,18 @@ const FlagDashboard = ({ isAdmin = false }) => {
     };
 
     return (
-        <div className="space-y-8 sm:space-y-12">
+        <div className="min-w-0 space-y-6 sm:space-y-10">
+            {error && <ErrorNotice message={error} onRetry={() => fetchData().catch((requestError) => {
+                console.error('Flag dashboard retry failed', requestError);
+                setError(getRequestErrorMessage(requestError, t('Unable to load feature flags.')));
+            })} retryLabel={t('Retry')} />}
             {/* --- Interface --- */}
             <section className="flag-hero relative overflow-hidden rounded-3xl border border-blue-100 p-6 shadow-xl sm:rounded-[3rem] sm:p-10 lg:p-12">
                 <div className="absolute right-0 top-0 hidden p-12 opacity-10 sm:block lg:p-20">
                     <Cpu size={300} />
                 </div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div>
+                <div className="relative z-10 flex min-w-0 flex-col items-stretch justify-between gap-6 md:flex-row md:items-center md:gap-8">
+                    <div className="min-w-0">
                         <h1 className="text-4xl font-black leading-tight tracking-tighter text-slate-900 sm:text-5xl lg:text-6xl">{t('Flag')} <span className="text-blue-600">{t('Management')}</span></h1>
                         <div className="flex items-center gap-3 mb-4">
                             <span className="bg-blue-600 h-1 w-10 rounded-full"></span>
@@ -156,8 +200,8 @@ const FlagDashboard = ({ isAdmin = false }) => {
 
             {/* --- CREATE FLAG MODAL --- */}
             {showModal && (
-                <div className="fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl border border-slate-100">
+                <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-3 backdrop-blur-sm sm:p-4">
+                    <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-[2.5rem] sm:p-8">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-black text-slate-900">{t('Create New Feature Flag')}</h3>
                             <button onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -240,18 +284,18 @@ const FlagDashboard = ({ isAdmin = false }) => {
                                 />
                             </div>
                             <div className="flex justify-end gap-4 pt-4">
-                                <button 
+                                <button
                                     type="button" 
                                     onClick={() => setShowModal(false)}
                                     className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
                                 >
                                     {t('Cancel')}
                                 </button>
-                                <button 
+                                <button disabled={isSaving}
                                     type="submit"
-                                    className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-600/30 cursor-pointer"
+                                    className="min-h-11 rounded-2xl bg-blue-600 px-8 py-3 font-black text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-60"
                                 >
-                                    {t('Save Flag')}
+                                    {isSaving ? t('PLEASE WAIT...') : t('Save Flag')}
                                 </button>
                             </div>
                         </form>
@@ -260,19 +304,22 @@ const FlagDashboard = ({ isAdmin = false }) => {
             )}
 
             {/* --- GRID OF FEATURE --- */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+            {isLoading ? <LoadingNotice message={t('Loading feature flags...')} /> : flags.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">{t('No feature flags found')}</p>
+            ) :             <div className="grid min-w-0 grid-cols-1 gap-5 sm:gap-8 xl:grid-cols-2">
                 {flags.map(flag => (
                     <div key={flag.id} className="feature-card flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg sm:rounded-[2.5rem]">
                         
                         {/* HEADER ( IDENTITY ) */}
-                        <div className="p-10 flex justify-between items-start border-b border-slate-100">
-                            <div className="flex gap-6 items-center">
-                                <div className="w-20 h-20 bg-linear-to-br from-blue-50 to-blue-100 rounded-4xl flex items-center justify-center text-blue-600 border border-blue-200 shadow-inner">
-                                    <Settings2 size={40} strokeWidth={2.5}/>
+                        <div className="flex min-w-0 flex-col justify-between gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-start sm:p-8">
+                            <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+                                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-blue-100 text-blue-600 shadow-inner sm:h-20 sm:w-20 sm:rounded-4xl">
+                                    <Settings2 size={32} strokeWidth={2.5} className="sm:hidden" />
+                                    <Settings2 size={40} strokeWidth={2.5} className="hidden sm:block" />
                                 </div>
-                                <div>
-                                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">{flag.key}</h3>
-                                    <div className="flex items-center gap-2 mt-2">
+                                <div className="min-w-0">
+                                    <h3 className="break-all text-xl font-black uppercase italic tracking-tighter text-slate-900 sm:text-3xl">{flag.key}</h3>
+                                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                                         <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{flag.owner_team || t('Unassigned')}</span>
                                         <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">
@@ -282,22 +329,27 @@ const FlagDashboard = ({ isAdmin = false }) => {
                                 </div>
                             </div>
 
-                            <div 
-                                onClick={isAdmin ? () => toggleFlag(flag) : undefined}
-                                className={`group h-12 w-24 rounded-full p-1.5 transition-colors duration-300 flex items-center ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} ${flag.enabled ? 'bg-green-500' : 'bg-slate-300'}`}
+                            <button
+                                type="button"
+                                onClick={() => toggleFlag(flag)}
+                                disabled={!isAdmin || isMutating}
+                                role="switch"
+                                aria-checked={flag.enabled}
+                                aria-label={`${t('Enabled')}: ${flag.key}`}
+                                className={`group h-12 w-24 shrink-0 rounded-full p-1.5 transition-colors duration-300 motion-reduce:transition-none ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} ${flag.enabled ? 'bg-green-500' : 'bg-slate-300'} ${isMutating ? 'pointer-events-none opacity-60' : ''}`}
                             >
                                 <div className={`h-9 w-9 bg-white rounded-full shadow-2xl flex items-center justify-center transition-transform duration-300 ${flag.enabled ? 'translate-x-12' : 'translate-x-0'}`}>
                                     <Cpu size={18} className={flag.enabled ? 'text-green-600' : 'text-slate-400'} />
                                 </div>
-                            </div>
+                            </button>
                         </div>
 
                         {/* BODY */}
-                        <div className="p-10 space-y-12 flex-1">
+                        <div className="min-w-0 flex-1 space-y-8 p-5 sm:space-y-10 sm:p-8">
                             
                             {/* ROLLOUT */}
                             <div className="space-y-6">
-                                <div className="flex justify-between items-end">
+                                <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
                                     <div className="space-y-1">
                                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
                                             <Activity size={14} className="text-blue-500" /> {t('Percentage')}
@@ -335,15 +387,15 @@ const FlagDashboard = ({ isAdmin = false }) => {
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
                                     <Globe size={14} className="text-orange-500" /> {t('Flag Force Toggle')}
                                 </h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
                                     {envs.map(env => {
                                         const state = getOverrideState(flag.id, env.id);
                                         return (
-                                            <button 
+                                            <button
                                                 key={env.id}
                                                 onClick={() => handleOverrideToggle(flag.id, env.id)}
-                                                disabled={!isAdmin}
-                                                className={`p-6 rounded-4xl border-2 transition-all flex flex-col items-center justify-center gap-2 group/btn active:scale-90 cursor-pointer ${state.bg} ${state.text} ${state.label === 'DEFAULT' ? 'border-slate-100 hover:border-blue-400 bg-slate-50 text-slate-600' : 'border-transparent shadow-lg'}`}
+                                                disabled={!isAdmin || isMutating}
+                                                className={`min-h-20 min-w-0 rounded-2xl border-2 p-4 transition-all duration-200 motion-reduce:transition-none sm:rounded-3xl sm:p-5 ${isAdmin ? 'cursor-pointer active:scale-[0.98]' : 'cursor-not-allowed opacity-60'} ${state.bg} ${state.text} ${state.label === 'DEFAULT' ? 'border-slate-100 bg-slate-50 text-slate-600 hover:border-blue-400' : 'border-transparent shadow-lg'} ${isMutating ? 'opacity-60' : ''}`}
                                             >
                                                 <span className="text-[10px] font-black tracking-widest uppercase opacity-70">{env.name}</span>
                                                 <div className="flex items-center gap-2 font-black text-xs uppercase tracking-tighter">
@@ -357,10 +409,10 @@ const FlagDashboard = ({ isAdmin = false }) => {
                         </div>
 
                         {/* FOOTER */}
-                        <div className="flex items-center justify-between gap-3 rounded-b-3xl border-t border-slate-100 bg-slate-50/70 p-5 sm:rounded-b-[2.5rem] sm:p-8">
-                            <div>
+                        <div className="flex min-w-0 flex-col items-stretch justify-between gap-4 rounded-b-3xl border-t border-slate-100 bg-slate-50/70 p-5 sm:flex-row sm:items-center sm:rounded-b-[2.5rem] sm:p-8">
+                            <div className="min-w-0">
                                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{t('Flag Description')}</h4>
-                                <p className="text-xs text-slate-500 font-medium italic mt-1">"{flag.description || t('System controlled')}"</p>
+                                <p className="mt-1 break-words text-xs font-medium italic text-slate-500">"{flag.description || t('System controlled')}"</p>
                             </div>
                             {isAdmin && <button onClick={() => handleDelete(flag.id)} className="group flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all cursor-pointer">
                                 <Trash2 size={16} className="group-hover:rotate-12 transition-transform"/>
@@ -369,7 +421,7 @@ const FlagDashboard = ({ isAdmin = false }) => {
                         </div>
                     </div>
                 ))}
-            </div>
+            </div>}
         </div>
     );
 };

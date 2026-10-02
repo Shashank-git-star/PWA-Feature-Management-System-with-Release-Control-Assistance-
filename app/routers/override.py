@@ -6,9 +6,13 @@ import app.models.feature_flag
 from app.schemas.override import OverrideCreate, OverrideUpdate, OverrideResponse
 from app.models import EnvironmentModel
 from app.services.audit import log_action
-from app.routers.auth import require_admin
+from app.routers.auth import get_current_user, require_admin
 
-router = APIRouter(prefix="/overrides", tags=["Environment Overrides"])
+router = APIRouter(
+    prefix="/overrides",
+    tags=["Environment Overrides"],
+    dependencies=[Depends(get_current_user)],
+)
 
 # CREATE an override
 @router.post("/", response_model=OverrideResponse, status_code=status.HTTP_201_CREATED)

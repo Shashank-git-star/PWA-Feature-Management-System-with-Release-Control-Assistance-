@@ -5,9 +5,13 @@ from app.database import get_db
 from app.models.targeting_rule import TargetingRuleModel
 from app.schemas.targeting import TargetingRuleCreate, TargetingRuleResponse
 from app.services.audit import log_action
-from app.routers.auth import require_admin
+from app.routers.auth import get_current_user, require_admin
 
-router = APIRouter(prefix="/targeting", tags=["Targeting Rules"])
+router = APIRouter(
+    prefix="/targeting",
+    tags=["Targeting Rules"],
+    dependencies=[Depends(get_current_user)],
+)
 
 @router.post("/", response_model=TargetingRuleResponse)
 def create_targeting_rule(rule: TargetingRuleCreate, db: Session = Depends(get_db), admin_user=Depends(require_admin)):
